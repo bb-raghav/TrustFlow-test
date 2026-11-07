@@ -2,11 +2,11 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, ''
 let csrfToken = ''
 export function evidenceFileUrl(path: string) { return `${API_BASE}${path}` }
 
-export type User = { id: string; name: string; email: string; role: 'client' | 'freelancer'; email_verified: boolean; paypal_merchant_id?: string | null }
+export type User = { id: string; name: string; email: string; role: 'client' | 'freelancer'; email_verified: boolean }
 export type Project = {
   id: string; title: string; description: string | null; currency: string; status: string
   membership_status: 'invited' | 'accepted' | 'declined' | 'cancelled'; invited_email?: string
-  client_name: string; freelancer_name: string | null; freelancer_paypal_connected?: boolean
+  client_name: string; freelancer_name: string | null
   milestone_count?: number; progress_percent?: number; submitted_count?: number; revision_count?: number
   decision_due_count?: number; active_payment_count?: number; milestones?: Milestone[]
 }
@@ -107,12 +107,6 @@ export async function acceptProject(id: string) { return request(`/projects/${id
 export async function declineProject(id: string) { return request(`/projects/${id}/decline`, { method: 'POST', body: '{}' }) }
 export async function cancelProjectInvitation(id: string) { return request(`/projects/${id}/invitation/cancel`, { method: 'POST', body: '{}' }) }
 export async function resendProjectInvitation(id: string) { return request(`/projects/${id}/invitation/resend`, { method: 'POST', body: '{}' }) }
-export async function startPaypalOnboarding() {
-  return request<{ connected: boolean; approval_url?: string }>('/auth/paypal/onboarding', { method: 'POST', body: '{}' })
-}
-export async function completePaypalOnboarding(payload: { tracking_id: string; merchant_id: string; permissions_granted: boolean; consent_status: boolean }) {
-  return request<{ connected: boolean }>('/auth/paypal/onboarding/complete', { method: 'POST', body: JSON.stringify(payload) })
-}
 export async function createMilestone(projectId: string, payload: { title: string; acceptance_criteria: string[]; amount: string; currency: string; due_at?: string }) {
   return request<Milestone>(`/projects/${projectId}/milestones`, { method: 'POST', body: JSON.stringify(payload) })
 }

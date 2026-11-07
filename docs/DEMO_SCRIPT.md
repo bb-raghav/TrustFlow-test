@@ -3,20 +3,20 @@
 ## Before the demo
 
 1. Configure PostgreSQL, run `python scripts/setup_db.py` from `backend/`, and start the API. Follow the root README for exact commands.
-2. Set the Gemini environment variables if you will show assessment. PayPal direct settlement additionally needs an approved marketplace partner account, seller onboarding credentials, webhook ID, and frontend return/cancel URLs.
+2. Set the Gemini environment variables if you will show assessment. PayPal Sandbox checkout needs the Sandbox client ID and secret plus frontend return/cancel URLs. No marketplace partner account or freelancer PayPal onboarding is used.
 3. Open the frontend and create a client account. Invite a freelancer email; use its invitation link to create and verify a freelancer account if needed. No demo accounts are built in.
 
 ## Product walkthrough
 
 1. Sign in as the client, create a project using the freelancer's email, and propose a milestone with explicit criteria, amount, currency, and deadline.
-2. Sign in as the freelancer, accept the invitation, connect an eligible PayPal receiving account, review the milestone terms, and accept them. Submit evidence text; add a reference link or supported attachment to show how those limitations are disclosed.
+2. Sign in as the freelancer, accept the invitation, review and accept milestone terms, then submit evidence text. Add a reference link or supported attachment to show how those limitations are disclosed. No freelancer PayPal account connection is required.
 3. Return as the client and request an assessment. Review each agreed criterion, quote, missing proof, inference, report version, and evidence revision.
 4. If proof is incomplete, request a revision. Sign in as the freelancer and submit a new evidence revision, then rerun the assessment.
 5. When all current criteria are marked met, explicitly approve as the client. The assessment itself does not approve anything.
-6. Create a PayPal Sandbox order routed to the freelancer, complete the buyer approval page, confirm authorization, and capture. Show the persisted payment state and audit timeline.
+6. Create a standard PayPal Sandbox order, approve it with a Sandbox Personal buyer, return to TrustFlow, and confirm authorization. After the client explicitly approves the current milestone evidence, capture the authorization and show the persisted payment state and audit timeline. Captured funds are processed by the merchant account configured for the REST app; they are not automatically paid to the freelancer.
 7. If PayPal's capture result is uncertain, show `capture_pending` and use the reconcile action. Do not claim a successful capture until TrustFlow confirms the provider result.
 
-The suite does not use fake payment success or a payout stub. PayPal partner approval is required for seller onboarding and direct settlement. If partner credentials or an approved buyer account are unavailable, demonstrate the persisted state up to the point available and describe the rest as untested.
+The suite does not use fake payment success or a payout stub. If Sandbox client credentials or an approved buyer account are unavailable, demonstrate the persisted state up to the point available and describe the rest as untested. Do not describe capture as a freelancer payout.
 
 ## Optional Zapier event demo
 

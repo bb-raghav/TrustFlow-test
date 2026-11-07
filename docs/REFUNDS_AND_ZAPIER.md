@@ -135,7 +135,7 @@ Zendesk ticket updates use its [Tickets API](https://developer.zendesk.com/api-r
 
 ## Agent-proposed refund review
 
-The existing `client` account is the merchant/payer. A trusted agent can create a proposal through `POST /agent/refund-proposals`; it cannot send a refund. Only the authenticated project client can approve or reject proposals in **Payments → Agent-proposed refunds**.
+The PayPal business account configured for the REST app is the merchant; the client is the payer. Captures and refunds in this demo are processed through that configured merchant account and are not paid out to freelancers. A trusted agent can create a proposal through `POST /agent/refund-proposals`; it cannot send a refund. Only the authenticated project client can approve or reject proposals in **Payments → Agent-proposed refunds**.
 
 Set a long random `TRUSTFLOW_AGENT_TOKEN` on the backend. The agent endpoint requires it as a bearer token. `proposal_key` is an idempotency key and must be reused when retrying the same proposal.
 

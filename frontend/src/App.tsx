@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEven
 import {
   acceptProject, declineProject, cancelProjectInvitation, resendProjectInvitation,
   assessMilestone, authorizePayment, capturePayment, createMilestone, evidenceFileUrl,
-  createPaymentOrder, createProject, currentUser, completePaypalOnboarding, startPaypalOnboarding, getNotificationPreferences, updateNotificationPreferences, decideMilestone, decideMilestoneAgreement, decideRefundProposal, getAudit, getMilestone, getPayments, getRefundProposals, getWorkspaceActivity, getNotifications, markNotificationsRead as saveNotificationReads,
+  createPaymentOrder, createProject, currentUser, getNotificationPreferences, updateNotificationPreferences, decideMilestone, decideMilestoneAgreement, decideRefundProposal, getAudit, getMilestone, getPayments, getRefundProposals, getWorkspaceActivity, getNotifications, markNotificationsRead as saveNotificationReads,
   getProject, getProjects, login, logout, reconcilePayment, requestPasswordReset, resendVerification, resetPassword, signup, submitEvidence,
   updateAccount, updateMilestone, verifyEmail,
   type AssessmentResponse, type Milestone, type Project, type RefundProposal, type User, type WorkspaceActivity, type WorkspaceNotification, type WorkspacePayment,
@@ -113,35 +113,6 @@ function App() {
       document.removeEventListener('keydown', closeOnEscape)
     }
   }, [])
-
-  useEffect(() => {
-    if (!user || window.location.pathname !== '/paypal-onboarding-return') return
-    const params = new URLSearchParams(window.location.search)
-    const trackingId = params.get('merchantId') || ''
-    const merchantId = params.get('merchantIdInPayPal') || ''
-    let active = true
-    async function finishPaypalOnboarding() {
-      try {
-        await completePaypalOnboarding({
-          tracking_id: trackingId,
-          merchant_id: merchantId,
-          permissions_granted: params.get('permissionsGranted') === 'true',
-          consent_status: params.get('consentStatus') === 'true',
-        })
-        const response = await currentUser()
-        if (!active) return
-        setUser(response.user)
-        setSettingsOpen(true)
-        setNotice('Your PayPal receiving account is connected and ready for milestone payments.')
-      } catch (reason) {
-        if (active) setError(reason instanceof Error ? reason.message : 'PayPal onboarding could not be confirmed.')
-      } finally {
-        if (active) window.history.replaceState({}, '', '/')
-      }
-    }
-    void finishPaypalOnboarding()
-    return () => { active = false }
-  }, [user])
 
   useEffect(() => {
     function focusSearch(event: KeyboardEvent) {
@@ -470,25 +441,11 @@ function App() {
     await run(async () => { await logout(); setUser(null); setNotifications([]); setProject(null); setMilestone(null); setProjects([]); setActivity([]); setPayments([]); setRefundProposals([]); setSettingsOpen(false); setActiveSection('overview') })
   }
 
-  async function connectPaypalAccount() {
-    await run(async () => {
-      const referral = await startPaypalOnboarding()
-      if (referral.connected) {
-        const response = await currentUser()
-        setUser(response.user)
-        setNotice('Your PayPal receiving account is already connected.')
-        return
-      }
-      if (!referral.approval_url) throw new Error('PayPal did not return a seller onboarding link.')
-      window.location.assign(referral.approval_url)
-    })
-  }
-
   if (window.location.pathname === '/verify-email') return <EmailVerificationPage status={verificationStatus || 'checking'} onResend={resendConfirmation} busy={busy} error={error} />
   if (window.location.pathname === '/forgot-password') return <ForgotPasswordPage />
   if (window.location.pathname === '/reset-password') return <ResetPasswordPage />
   if (pendingVerificationEmail) return <VerificationPending email={pendingVerificationEmail} message={pendingVerificationMessage} busy={busy} error={error} onResend={resendConfirmation} onBack={() => { setPendingVerificationEmail(''); setAuthMode('login'); setError('') }} />
-  if (!['/', '/payment-return', '/payment-cancel', '/paypal-onboarding-return'].includes(window.location.pathname)) return <main className="not-found-page"><section className="surface"><span className="eyebrow">404 · PAGE NOT FOUND</span><h1>We couldn’t find that page.</h1><p>Use your workspace navigation to return to a project.</p><a className="primary-button link-button" href="/">Go to TrustFlow</a></section></main>
+  if (!['/', '/payment-return', '/payment-cancel'].includes(window.location.pathname)) return <main className="not-found-page"><section className="surface"><span className="eyebrow">404 · PAGE NOT FOUND</span><h1>We couldn’t find that page.</h1><p>Use your workspace navigation to return to a project.</p><a className="primary-button link-button" href="/">Go to TrustFlow</a></section></main>
   if (initializing) return <main className="app-loading" role="status" aria-live="polite"><span className="verification-spinner" aria-hidden="true"/><p>Loading TrustFlow…</p></main>
   if (!user) return <AuthScreen mode={authMode} setMode={setAuthMode} onSubmit={handleAuth} busy={busy} error={error} initialEmail={invitationEmail} />
 
@@ -545,7 +502,7 @@ function App() {
       <div className={`content ${!project && !settingsOpen && activeSection === 'overview' ? 'overview-content' : ''}`}>
         {error && <div role="alert" className="alert error-alert"><strong>Could not complete that action.</strong> {error}<button onClick={() => setError('')} aria-label="Dismiss">×</button></div>}
         {notice && <div role="status" className="alert success-alert">{notice}<button onClick={() => setNotice('')} aria-label="Dismiss">×</button></div>}
-        {!project && settingsOpen && <SettingsPage user={user} busy={busy} notificationPreferences={notificationPreferences} onPreferenceChange={saveNotificationPreferences} onConnectPaypal={() => void connectPaypalAccount()} onSave={(data) => void run(async () => { const response = await updateAccount(data); setUser(response.user); setNotice('Account settings saved. Your session was rotated.') })} />}
+        {!project && settingsOpen && <SettingsPage user={user} busy={busy} notificationPreferences={notificationPreferences} onPreferenceChange={saveNotificationPreferences} onSave={(data) => void run(async () => { const response = await updateAccount(data); setUser(response.user); setNotice('Account settings saved. Your session was rotated.') })} />}
         {!project && !settingsOpen && activeSection === 'overview' && <Dashboard
           user={user} projects={projects} busy={busy} searchQuery={searchQuery} activity={activity}
           activityLoading={activityLoading} activityError={activityError} onOpen={openProject} onEditProject={editProjectMilestone} onClearSearch={() => setSearchQuery('')}
@@ -890,10 +847,9 @@ function Dashboard({ user, projects, busy, searchQuery, activity, activityLoadin
   </>
 }
 
-function SettingsPage({ user, busy, notificationPreferences, onPreferenceChange, onConnectPaypal, onSave }: {
+function SettingsPage({ user, busy, notificationPreferences, onPreferenceChange, onSave }: {
   user: User; busy: boolean; notificationPreferences: NotificationPreferences
   onPreferenceChange: (preferences: NotificationPreferences) => void
-  onConnectPaypal: () => void
   onSave: (data: { name: string; current_password: string; new_password?: string }) => void
 }) {
   const [passwordError, setPasswordError] = useState('')
@@ -915,7 +871,7 @@ function SettingsPage({ user, busy, notificationPreferences, onPreferenceChange,
       <aside className="settings-side-stack">
         <section className="surface settings-identity-card"><div className="settings-cover-art"><span className="cover-orbit cover-orbit-a"/><span className="cover-orbit cover-orbit-b"/><span className="cover-monogram">{user.name.trim().slice(0, 1).toUpperCase()}</span><span className="cover-role-label">{user.role === 'client' ? 'CLIENT' : 'FREELANCER'}</span></div><div className="settings-identity-body"><span className="eyebrow">ACCOUNT IDENTITY</span><h2>{user.name}</h2><p>{user.email}</p><div className={`identity-verification ${user.email_verified ? 'verified' : 'pending'}`}><i/>{user.email_verified ? 'Email verified' : 'Email confirmation pending'}</div><div className="identity-facts"><div><span>ROLE</span><strong>{user.role === 'client' ? 'Client' : 'Freelancer'}</strong></div><div><span>WORKSPACE</span><strong>{user.role === 'client' ? 'Client studio' : 'Freelancer desk'}</strong></div></div></div></section>
         <section className="surface settings-security-card"><div className="settings-side-head"><span className="settings-side-icon green">✓</span><div><span className="eyebrow">SECURITY STATUS</span><h3>{user.email_verified ? 'Email confirmed' : 'One step left'}</h3></div></div><p>{user.email_verified ? 'Your account email is confirmed. Keep using a unique password and avoid sharing access.' : 'Confirm your email address to complete the account verification step.'}</p><div className="security-check-row"><span><i className={user.email_verified ? 'ok' : 'waiting'}/>Email confirmation</span><strong>{user.email_verified ? 'Complete' : 'Pending'}</strong></div><div className="security-check-row"><span><i className="ok"/>Authenticated session</span><strong>Active</strong></div><div className="security-check-row"><span><i className="ok"/>Password recovery</span><strong>Email link</strong></div></section>
-        {user.role === 'freelancer' && <section className="surface settings-security-card paypal-connect-card"><div className="settings-side-head"><span className="settings-side-icon blue">$</span><div><span className="eyebrow">PAYMENT SETUP</span><h3>PayPal receiving account</h3></div></div><p>Connect your PayPal account so clients can authorize milestone payments and settle captured funds to you.</p><div className="security-check-row"><span><i className={user.paypal_merchant_id ? 'ok' : 'waiting'}/>Seller onboarding</span><strong>{user.paypal_merchant_id ? 'Connected' : 'Required'}</strong></div>{user.paypal_merchant_id ? <small>PayPal account ending in {user.paypal_merchant_id.slice(-4)} is connected.</small> : <button type="button" className="primary-button" disabled={busy} onClick={onConnectPaypal}>Connect PayPal account <span>→</span></button>}</section>}
+        {user.role === 'freelancer' && <section className="surface settings-security-card"><div className="settings-side-head"><span className="settings-side-icon blue">$</span><div><span className="eyebrow">PAYMENT DEMO</span><h3>No PayPal setup required</h3></div></div><p>Clients can approve orders with a PayPal Sandbox Personal account. Captured funds are processed by the PayPal merchant account configured for this app; this demo does not pay funds out to freelancers.</p></section>}
         <NotificationPreferencesCard preferences={notificationPreferences} onChange={onPreferenceChange}/>
       </aside>
     </div>
@@ -1027,7 +983,7 @@ function MilestonePage({ milestone, project, user, busy, audit, onBack, onRefres
       <section className="surface"><div className="section-head"><div><span className="eyebrow">EVIDENCE HISTORY</span><h2>Submissions</h2></div><span className="subtle-count">{milestone.evidence_history?.length || 0}</span></div>{!milestone.evidence_history?.length ? <p className="muted">No evidence has been submitted yet.</p> : <div className="history-list">{milestone.evidence_history.map((item) => <article className="history-item" key={item.id}><span className="history-rev">R{item.evidence_revision}</span><div><strong>{new Date(item.submitted_at).toLocaleString()}</strong><p>{item.description || 'No text description submitted.'}</p>{item.file_name && <><small>Attachment saved: {item.file_name} · not inspected</small>{item.file_url && <a className="file-download" href={evidenceFileUrl(item.file_url)}>Download file</a>}</>}{item.evidence_links?.map((link) => <small key={link} className="link-line">{link} · not opened</small>)}</div></article>)}</div>}</section>
       {isClient && <section className="surface review-card"><div className="section-head"><div><span className="eyebrow">AI ASSISTED REVIEW</span><h2>Assessment</h2><p>Assessment is advisory. It cannot approve this milestone or authorize payment.</p></div></div>{latestReportCurrent && report ? <AssessmentView result={report}/>:<div className="empty-inline"><span>✦</span><div><strong>{milestone.evidence_history?.length ? 'No current assessment' : 'Waiting for evidence'}</strong><p>Run an assessment after the freelancer submits a revision.</p></div></div>}{milestone.evidence_history?.length ? <button className="secondary-button" disabled={busy} onClick={onAssess}>Run assessment for revision {milestone.evidence_revision}</button> : null}{report && milestone.assessment_history?.[0]?.is_stale && <div className="notice-box">This assessment is stale because a newer evidence revision exists.</div>}</section>}
       {isClient && <section className="surface decision-card"><div className="section-head"><div><span className="eyebrow">CLIENT DECISION</span><h2>Your review decision</h2><p>Only the project client can approve or request a revision.</p></div></div><label className="decision-note">Note to freelancer<textarea id="decision-note" rows={2} maxLength={2000} placeholder="What should change or be kept in mind?"/></label><div className="decision-actions"><button className="secondary-button" disabled={busy || !currentReport || milestone.status === 'approved' || milestone.status === 'paid'} onClick={() => onDecision('revision_requested', (document.getElementById('decision-note') as HTMLTextAreaElement).value)}>Request revision</button><button className="primary-button" disabled={busy || !report?.assessment?.all_supported || !currentReport || milestone.status === 'approved' || milestone.status === 'paid'} onClick={() => { if (window.confirm('Approve this milestone based on the current evidence revision?')) onDecision('approved', '') }}>Approve milestone <span>✓</span></button></div>{milestone.status === 'approved' && <button className="text-button revoke-button" disabled={busy || milestone.payment?.status === 'capture_pending' || milestone.payment?.status === 'captured'} onClick={() => { if (window.confirm('Revoke this approval before capture starts?')) onDecision('revoked', 'Client revoked approval') }}>Revoke approval</button>}{milestone.decisions?.length ? <div className="decision-history"><strong>Decision history</strong>{milestone.decisions.slice(0, 5).map((decision, index) => <article key={`${decision.decision}-${decision.created_at}-${index}`}><span>{decision.decision.replaceAll('_', ' ')} · revision {decision.evidence_revision}</span>{decision.note && <p>{decision.note}</p>}<small>{new Date(decision.created_at).toLocaleString()}</small></article>)}</div> : null}</section>}
-      <PaymentPanel milestone={milestone} user={user} busy={busy} payeeConnected={!!project.freelancer_paypal_connected} onOrder={onOrder} onAuthorize={onAuthorize} onCapture={onCapture} onReconcile={onReconcile}/></div>
+      <PaymentPanel milestone={milestone} user={user} busy={busy} onOrder={onOrder} onAuthorize={onAuthorize} onCapture={onCapture} onReconcile={onReconcile}/></div>
       <aside className="timeline-column"><section className="surface"><div className="section-head"><div><span className="eyebrow">PROJECT HISTORY</span><h2>Audit timeline</h2></div><button className="icon-button" onClick={onRefresh} title="Refresh timeline" aria-label="Refresh timeline">↻</button></div>{!audit.length ? <p className="muted">Actions will appear here as the project progresses.</p> : <div className="timeline">{audit.map((item, i) => <article className="timeline-item" key={`${item.event_type}-${item.created_at}-${i}`}><span className="timeline-dot"/><div><strong>{item.event_type.replaceAll('.', ' ')}</strong><small>{new Date(item.created_at).toLocaleString()}</small><p>{item.actor_type}</p></div></article>)}</div>}</section><section className="surface trust-card"><span>◈</span><strong>What the assessor can see</strong><p>Only the submitted evidence text and agreed criteria. Links are not opened. Attachments are stored privately but not extracted.</p></section></aside>
     </div>
   </>
@@ -1039,10 +995,10 @@ function AssessmentView({ result }: { result: AssessmentResponse }) {
   return <div className="assessment-report"><div className="report-summary"><span className={`report-indicator ${assessment.all_supported ? 'good' : ''}`}>{assessment.all_supported ? '✓' : '!'}</span><div><strong>{assessment.overall_summary || (assessment.all_supported ? 'All criteria met' : 'Some criteria need follow-up')}</strong><small>Evidence revision {assessment.evidence_revision} · {result.report?.report_version || 'report'} · {result.trace.prompt_version} · {result.trace.model} · {(result.trace.duration_ms / 1000).toFixed(1)}s</small></div></div><div className="finding-list">{assessment.verdicts.map((finding) => <article className="finding" key={finding.criterion_id}><div className="finding-head"><strong>Criterion {finding.criterion_id}</strong><span className={`finding-status ${finding.verdict}`}>{finding.verdict.replaceAll('_',' ')}</span></div>{finding.quote && <blockquote>“{finding.quote}”</blockquote>}<p>{finding.reasoning}</p>{finding.observed_facts?.length > 0 && <small>Observed: {finding.observed_facts.join('; ')}</small>}{finding.model_inferences?.length > 0 && <small>Model inference: {finding.model_inferences.join('; ')}</small>}{finding.missing_or_contradictory?.length > 0 && <small>Missing or contradictory: {finding.missing_or_contradictory.join('; ')}</small>}{finding.recommended_next_action && <small>Next: {finding.recommended_next_action}</small>}</article>)}</div>{(result.report?.limitations || assessment.limitations || []).length > 0 && <div className="limitations"><strong>Limitations</strong><ul>{(result.report?.limitations || assessment.limitations).map((item) => <li key={item}>{item}</li>)}</ul></div>}</div>
 }
 
-function PaymentPanel({ milestone, user, busy, payeeConnected, onOrder, onAuthorize, onCapture, onReconcile }: { milestone: Milestone; user: User; busy: boolean; payeeConnected: boolean; onOrder: () => void; onAuthorize: () => void; onCapture: () => void; onReconcile: () => void }) {
+function PaymentPanel({ milestone, user, busy, onOrder, onAuthorize, onCapture, onReconcile }: { milestone: Milestone; user: User; busy: boolean; onOrder: () => void; onAuthorize: () => void; onCapture: () => void; onReconcile: () => void }) {
   const payment = milestone.payment
   if (user.role !== 'client' && !payment) return null
-  return <section className="surface payment-card"><div className="section-head"><div><span className="eyebrow">PAYMENT STATUS</span><h2>PayPal · Freelancer receiving account</h2>
+  return <section className="surface payment-card"><div className="section-head"><div><span className="eyebrow">PAYMENT STATUS</span><h2>PayPal standard checkout</h2>
   <div className="paypal-partner">
     <img
       className="paypal-logo"
@@ -1051,7 +1007,7 @@ function PaymentPanel({ milestone, user, busy, payeeConnected, onOrder, onAuthor
     />
     <span>PAYMENT PARTNER</span>
   </div>
-  </div><span className={`status-chip status-${payment?.status || 'not-created'}`}>{(payment?.status || 'not created').replaceAll('_', ' ')}</span></div><p>{payment ? formatMoney(payment.amount, payment.currency) : 'Create an order for the agreed amount. PayPal settles captured funds to the freelancer account.'}</p>{user.role === 'client' && !payeeConnected && !payment && <div className="notice-box">The freelancer must connect an eligible PayPal receiving account before checkout can begin.</div>}{user.role === 'client' && !payment && milestone.currency === 'INR' && <div className="notice-box">You can track this milestone in rupees, but PayPal checkout is unavailable for INR.</div>}{Number(payment?.refunded_amount || 0) > 0 && payment && <small>Refunded: {formatMoney(payment.refunded_amount || 0, payment.currency)}</small>}{payment?.paypal_order_id && <small>Order: {payment.paypal_order_id}</small>}{payment?.paypal_authorization_id && <small>Authorization: {payment.paypal_authorization_id}</small>}{payment?.paypal_capture_id && <small>Capture: {payment.paypal_capture_id}</small>}{payment?.status === 'created' && payment.paypal_approval_url && <a className="secondary-button link-button" href={payment.paypal_approval_url} target="_blank" rel="noreferrer">Continue to PayPal ↗</a>}{user.role === 'client' && !payment && <button className="secondary-button" disabled={busy || milestone.status === 'paid' || milestone.agreement_status !== 'accepted' || !payeeConnected || milestone.currency === 'INR'} onClick={onOrder}>Create PayPal order</button>}{user.role === 'client' && payment?.status === 'created' && <button className="secondary-button" disabled={busy} onClick={onAuthorize}>Confirm buyer approval and authorize</button>}{user.role === 'client' && payment?.status === 'authorized' && milestone.status === 'approved' && <button className="primary-button" disabled={busy} onClick={onCapture}>Capture amount for freelancer <span>→</span></button>}{user.role === 'client' && payment?.status === 'capture_pending' && <button className="secondary-button" disabled={busy} onClick={onReconcile}>Reconcile with PayPal</button>}{payment?.status === 'captured' && <p className="payment-complete">PayPal confirmed settlement · {payment.paypal_capture_id}</p>}{(payment?.status === 'refunded' || payment?.status === 'partially_refunded') && <p className="payment-complete">PayPal confirmed {payment.status === 'refunded' ? 'the refund' : 'a partial refund'}.</p>}<small>TrustFlow coordinates this PayPal transaction; it does not provide legal escrow.</small></section>
+  </div><span className={`status-chip status-${payment?.status || 'not-created'}`}>{(payment?.status || 'not created').replaceAll('_', ' ')}</span></div><p>{payment ? formatMoney(payment.amount, payment.currency) : 'Create an order for the agreed amount and approve it with a Sandbox Personal account.'}</p>{user.role === 'client' && !payment && milestone.currency === 'INR' && <div className="notice-box">You can track this milestone in rupees, but PayPal checkout is unavailable for INR.</div>}{payment && <div className="notice-box">This standard checkout processes funds through the PayPal merchant account configured for this app. Captured funds are not automatically paid out to the freelancer.</div>}{!payment && user.role === 'client' && <div className="notice-box">This demo does not route payouts to freelancers. A captured payment is processed by the merchant account configured for TrustFlow.</div>}{Number(payment?.refunded_amount || 0) > 0 && payment && <small>Refunded: {formatMoney(payment.refunded_amount || 0, payment.currency)}</small>}{payment?.paypal_order_id && <small>Order: {payment.paypal_order_id}</small>}{payment?.paypal_authorization_id && <small>Authorization: {payment.paypal_authorization_id}</small>}{payment?.paypal_capture_id && <small>Capture: {payment.paypal_capture_id}</small>}{payment?.status === 'created' && payment.paypal_approval_url && <a className="secondary-button link-button" href={payment.paypal_approval_url} target="_blank" rel="noreferrer">Continue to PayPal ↗</a>}{user.role === 'client' && !payment && <button className="secondary-button" disabled={busy || milestone.status === 'paid' || milestone.agreement_status !== 'accepted' || milestone.currency === 'INR'} onClick={onOrder}>Create PayPal order</button>}{user.role === 'client' && payment?.status === 'created' && <button className="secondary-button" disabled={busy} onClick={onAuthorize}>Confirm buyer approval and authorize</button>}{user.role === 'client' && payment?.status === 'authorized' && milestone.status === 'approved' && <button className="primary-button" disabled={busy} onClick={onCapture}>Capture authorized payment <span>→</span></button>}{user.role === 'client' && payment?.status === 'capture_pending' && <button className="secondary-button" disabled={busy} onClick={onReconcile}>Reconcile with PayPal</button>}{payment?.status === 'captured' && <p className="payment-complete">PayPal confirmed capture · {payment.paypal_capture_id}</p>}{(payment?.status === 'refunded' || payment?.status === 'partially_refunded') && <p className="payment-complete">PayPal confirmed {payment.status === 'refunded' ? 'the refund' : 'a partial refund'}.</p>}<small>TrustFlow tracks payment authorization and capture; it does not provide escrow or freelancer payouts.</small></section>
 }
 
 export default App

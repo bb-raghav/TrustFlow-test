@@ -1655,7 +1655,7 @@ button.pulse-metric-row:hover span, button.pulse-metric-row:hover strong { color
 .activity-event { display: flex; align-items: center; width: 100%; gap: 11px; padding: 12px 4px; border: 0; border-top: 1px solid #f0f0f6; text-align: left; background: transparent; cursor: pointer; }
 .activity-event:hover { background: #faf9ff; }
 
-/* Collaboration and direct seller settlement steps. */
+/* Collaboration and standard PayPal checkout details. */
 .create-project-invite-row { grid-template-columns: minmax(0, 1fr) minmax(64px, .24fr) auto; }
 .create-project-invite-row label small { color: #85848f; font-size: 9px; line-height: 1.4; }
 .project-invitation-actions { display: flex; align-items: center; gap: 9px; margin-bottom: 16px; padding: 15px 18px; }

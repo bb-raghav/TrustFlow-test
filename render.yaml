@@ -13,7 +13,7 @@ services:
       - key: TRUSTFLOW_ENV
         value: production
       - key: TRUSTFLOW_FRONTEND_URL
-        value: https://trustflow-ui.onrender.com
+        value: https://trustflow-paypal.vercel.app
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT
@@ -33,7 +33,7 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: CORS_ORIGINS
-        value: https://trustflow-ui.onrender.com
+        value: https://trustflow-paypal.vercel.app,https://trustflow-ui.onrender.com
       - key: PAYPAL_BASE_URL
         value: https://api-m.sandbox.paypal.com
       - key: PAYPAL_CLIENT_ID
@@ -43,9 +43,9 @@ services:
       - key: PAYPAL_WEBHOOK_ID
         sync: false
       - key: PAYPAL_RETURN_URL
-        value: https://trustflow-ui.onrender.com/payment-return
+        value: https://trustflow-paypal.vercel.app/payment-return
       - key: PAYPAL_CANCEL_URL
-        value: https://trustflow-ui.onrender.com/payment-cancel
+        value: https://trustflow-paypal.vercel.app/payment-cancel
       - key: GEMINI_API_KEY
         sync: false
       - key: TRUSTFLOW_MODEL

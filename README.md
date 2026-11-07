@@ -6,10 +6,10 @@ TrustFlow helps clients and freelancers coordinate milestone terms, evidence, AI
 
 1. A client creates a project and invites a freelancer by email. A new freelancer can create an account from the invitation link; the invitation is attached after email verification when verification is enabled.
 2. The freelancer accepts or declines the invitation. The client proposes milestone criteria, amount, currency, and deadline; the freelancer accepts each milestone's terms or requests changes before work starts.
-3. The freelancer connects an eligible PayPal receiving account, then submits a revision with text, HTTP(S) reference links, and optionally a private file (up to 3 MB).
+3. The freelancer submits a revision with text, HTTP(S) reference links, and optionally a private file (up to 3 MB). No PayPal account connection is required from the freelancer for the demo checkout.
 4. The client asks Gemini to assess the current revision against the agreed criteria. The report is stored with criterion-level findings and an audit record.
 5. The client requests changes or explicitly approves the current revision.
-6. PayPal order, buyer approval, authorization, capture to the freelancer's PayPal account, and reconciliation are handled separately from the AI report.
+6. A client approves a standard PayPal Sandbox order, TrustFlow records the authorization, and the client captures it after explicit milestone approval. Captured funds are processed by the PayPal merchant account configured for the app; this demo does not pay funds out to freelancers.
 
 Assessment considers only the submitted text. Reference links are not opened. PDF, image, and text attachments are stored as private PostgreSQL binary data and can be downloaded by project members, but file contents are not extracted or assessed. Reports disclose this limitation.
 
@@ -40,7 +40,7 @@ source venv/bin/activate       # Windows: venv\Scripts\activate
 python -m pip install -r backend/requirements.txt
 ```
 
-Create `backend/.env` from `backend/.env.example` only if it does not already exist. Add your PostgreSQL URL. To use assessments, set `GEMINI_API_KEY` and `TRUSTFLOW_MODEL`. Direct freelancer settlement requires PayPal to approve TrustFlow as a marketplace partner; then configure Sandbox `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `PAYPAL_PARTNER_MERCHANT_ID`, and `PAYPAL_PARTNER_ATTRIBUTION_ID`. Never commit `.env` or copy its values into the example file.
+Create `backend/.env` from `backend/.env.example` only if it does not already exist. Add your PostgreSQL URL. To use assessments, set `GEMINI_API_KEY` and `TRUSTFLOW_MODEL`. For standard PayPal Sandbox checkout, configure the Sandbox `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`; no Marketplace partner credentials or freelancer onboarding are needed. Never commit `.env` or copy its values into the example file.
 
 Apply the base schema and all additive migrations explicitly:
 
@@ -65,7 +65,7 @@ npm ci
 npm run dev
 ```
 
-Vite serves the app at `http://localhost:5173` and proxies `/api` to the local backend. Create a client account and invite any freelancer email. The freelancer can sign up from the invitation email, verify the same address if required, accept the project, connect PayPal, and accept milestone terms before submitting work.
+Vite serves the app at `http://localhost:5173` and proxies `/api` to the local backend. Create a client account and invite any freelancer email. The freelancer can sign up from the invitation email, verify the same address if required, accept the project and milestone terms, then submit work. No freelancer PayPal connection step is part of this demo.
 
 ## Environment variables
 
@@ -74,8 +74,6 @@ Vite serves the app at `http://localhost:5173` and proxies `/api` to the local b
 - `DATABASE_URL` — PostgreSQL connection string.
 - `GEMINI_API_KEY`, `TRUSTFLOW_MODEL`, optional `TRUSTFLOW_FALLBACK_MODEL` — AI assessment provider.
 - `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, optional `PAYPAL_BASE_URL` — PayPal; Sandbox is the default.
-- `PAYPAL_PARTNER_MERCHANT_ID`, `PAYPAL_PARTNER_ATTRIBUTION_ID` — required for PayPal-approved marketplace seller onboarding and direct settlement to freelancers.
-- `PAYPAL_SELLER_RETURN_URL` — HTTPS callback to `/paypal-onboarding-return`; it must match the production frontend origin.
 - `PAYPAL_WEBHOOK_ID` — registered webhook ID required for signature verification.
 - `PAYPAL_RETURN_URL`, `PAYPAL_CANCEL_URL` — frontend callback pages.
 - `CORS_ORIGINS` — exact frontend origins, comma separated.
@@ -89,7 +87,7 @@ Vite serves the app at `http://localhost:5173` and proxies `/api` to the local b
 
 ## Vercel services deployment
 
-The root `vercel.json` defines a FastAPI backend service and a Vite frontend service. In Vercel, set the project framework to **Services** and configure the backend environment variables in Project Settings. At minimum, set `DATABASE_URL`, `TRUSTFLOW_ENV=production`, a unique `SESSION_HASH_SALT`, and `TRUSTFLOW_FRONTEND_URL` to the public frontend origin; add Gemini, PayPal marketplace credentials, SMTP, optional `ZAPIER_WEBHOOK_URL`, and `TRUSTFLOW_AGENT_TOKEN` values as needed. Set `PAYPAL_RETURN_URL`, `PAYPAL_CANCEL_URL`, and `PAYPAL_SELLER_RETURN_URL` to the Vercel production domain. Vercel deployment hostnames are included in backend origin checks automatically.
+The production frontend is `https://trustflow-paypal.vercel.app`; the root `vercel.json` keeps `/api/*` on the existing Vercel backend service, so browser authentication stays same-origin. Set the backend's `TRUSTFLOW_ENV=production`, `CORS_ORIGINS` to the exact frontend origin, and `TRUSTFLOW_FRONTEND_URL`, `PAYPAL_RETURN_URL`, and `PAYPAL_CANCEL_URL` to the Vercel frontend. The Render blueprint retains its existing backend URL and frontend service, with explicit origins for both deployed frontends. The session cookie stays host-only, HttpOnly, Secure in deployed environments, and SameSite=Lax; CSRF token and Origin checks stay enabled. Existing PayPal credentials and Sandbox endpoint are unchanged.
 
 Apply the database schema and migrations to the Vercel database before using the app. Evidence files up to 3 MB are stored in PostgreSQL so they remain available across serverless function instances. This increases database storage use; larger files should use an external object store.
 
@@ -105,7 +103,6 @@ The app prefers Argon2id through `argon2-cffi`. The existing offline development
 - `POST /milestones/{id}/assessments`, `POST /milestones/{id}/decision`
 - `POST /milestones/{id}/payment/order`, `POST /milestones/{id}/payment/authorize`, `POST /milestones/{id}/payment/capture`, `POST /milestones/{id}/payment/reconcile`
 - `GET /refund-proposals`, `POST /refund-proposals/{id}/decision`, trusted-agent `POST /agent/refund-proposals`
-- `POST /auth/paypal/onboarding`, `POST /auth/paypal/onboarding/complete`
 - `GET /notifications`, `POST /notifications/read`, `GET/PATCH /notification-preferences`
 - `POST /webhooks/paypal`
 - `GET /health`, `GET /agent/health`, authenticated `GET /ready`
@@ -140,7 +137,7 @@ Backend tests mock Gemini and PayPal calls. They do not apply database migration
 ## Known MVP limits
 
 - Signup verification, password resets, invitations, milestone activity, review decisions, and payment notifications are sent through backend SMTP with TrustFlow-written event-specific messages. Local development signup remains immediate when SMTP is not configured; production signup is blocked until SMTP is configured. Zapier remains optional for non-email workflow and refund automations and is no longer used to send user emails.
-- Direct freelancer settlement requires PayPal marketplace partner approval, seller onboarding permissions for payment and refund, and a receiving account eligible to accept the milestone currency. This repository does not enable marketplace capabilities on its own; without PayPal partner approval, onboarding and payments remain unavailable.
+- Standard PayPal checkout requires a merchant account associated with the configured PayPal REST app credentials. Captures are processed by that merchant account; the demo has no freelancer payout or split-settlement feature.
 - Rows already present in the legacy `users` table may not have a password hash. Those users should use **Forgot password** with the account email to set a password through the verified email reset flow.
 - Uploaded files (up to 3 MB) are stored privately in PostgreSQL and downloadable by project members, but are not extracted, scanned for malware, OCRed, or included in the Gemini prompt. Do not treat file-only evidence as verified.
 - Evidence links are recorded and checked for valid HTTP(S) shape, but never fetched.

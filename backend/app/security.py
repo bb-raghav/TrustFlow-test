@@ -19,11 +19,11 @@ def secure_session_cookie() -> bool:
 
 
 def public_frontend_origin() -> str:
-    if os.getenv("VERCEL_ENV", "").lower() == "production":
-        return "https://trustflow-paypal.vercel.app"
     configured = os.getenv("TRUSTFLOW_FRONTEND_URL", "").strip()
     if configured:
         return configured.rstrip("/")
+    if os.getenv("VERCEL_ENV", "").lower() == "production":
+        return "https://trustflow-paypal.vercel.app"
     vercel_host = os.getenv("VERCEL_PROJECT_PRODUCTION_URL") or os.getenv("VERCEL_URL")
     if vercel_host:
         return f"https://{vercel_host.strip().rstrip('/')}"
